@@ -8,15 +8,15 @@ on:
 
 jobs:
 
-  audit:
+  unittest:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v4
       with:
-        go-version: 1.20
+        go-version: '>=1.20.0'
 
     - name: Verify dependencies
       run: go mod verify
