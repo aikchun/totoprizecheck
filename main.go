@@ -1,15 +1,28 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 )
 
 type TotoDraw struct {
-	WinningNumbers   []int
-	AdditionalNumber int
+	WinningNumbers   []int `json:"winningNumbers"`
+	AdditionalNumber int   `json:"additionaNumber"`
+}
+
+type Request struct {
+	WinningNumbers   string `json:"winningNumbers"`
+	AdditionalNumber string `json:"additionalNumber"`
+}
+
+type ErrorResponseBody struct {
+	Message string `json:"message"`
 }
 
 func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
@@ -45,10 +58,71 @@ func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
 	return n, nil
 }
 
+func handler(w http.ResponseWriter, r *http.Request) {
+	m := r.Method
+
+	if m != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(""))
+		return
+	}
+
+	var request Request
+
+	err := parseRequestBody(r, &request)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		errorResponseBody := ErrorResponseBody{
+			Message: "error parsing request body",
+		}
+		json.NewEncoder(w).Encode(errorResponseBody)
+		return
+	}
+
+	winningNumbers, err := convertStringToUniqueSortedNumbers(request.WinningNumbers)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(""))
+		return
+	}
+
+	if len(winningNumbers) != 6 {
+		w.WriteHeader(http.StatusBadRequest)
+		errorResponseBody := ErrorResponseBody{
+			Message: "winning numbers should only contain 6 numbers",
+		}
+		json.NewEncoder(w).Encode(errorResponseBody)
+
+	}
+
+}
+
+func parseRequestBody(r *http.Request, data any) error {
+	parsed, err := io.ReadAll(io.LimitReader(r.Body, 1048576))
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	if err := r.Body.Close(); err != nil {
+		log.Println(err)
+		return err
+	}
+	if err := json.Unmarshal(parsed, data); err != nil {
+		log.Println(err)
+		return err
+	}
+	return nil
+}
+
 func main() {
-	fmt.Println("Hello, world.")
-	result, _ := convertStringToUniqueSortedNumbers("01 2 3 ")
-	fmt.Printf("result %v\n", result)
+	p := ":8080"
+	http.HandleFunc("/", handler)
+	fmt.Printf("starting http server\n")
+	fmt.Printf("Listening on: %s", p)
+
+	log.Fatal(http.ListenAndServe(p, nil))
 }
 
 func convertStringToUniqueSortedNumbers(str string) ([]int, error) {
