@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
 func TestConvertStringToSortedNumbersSpaceTrim(t *testing.T) {
 	input := " 1 2 3 "
 	numbers, err := convertStringToUniqueSortedNumbers(input)
-
 	if err != nil {
 		t.Errorf("unexpected error converting %s", input)
 	}
@@ -25,7 +29,6 @@ func TestConvertStringToSortedNumbersSpaceTrim(t *testing.T) {
 func TestConvertStringToSortedNumbersLeading0(t *testing.T) {
 	input := "01 02 03"
 	numbers, err := convertStringToUniqueSortedNumbers(input)
-
 	if err != nil {
 		t.Errorf("unexpected error converting %s", input)
 	}
@@ -42,7 +45,6 @@ func TestConvertStringToSortedNumbersLeading0(t *testing.T) {
 func TestConvertStringToSortedNumbersSorted(t *testing.T) {
 	input := "3 2 1"
 	numbers, err := convertStringToUniqueSortedNumbers(input)
-
 	if err != nil {
 		t.Errorf("unexpected error converting %s", input)
 	}
@@ -59,7 +61,6 @@ func TestConvertStringToSortedNumbersSorted(t *testing.T) {
 func TestConvertStringToNumber(t *testing.T) {
 	input := "01"
 	number, err := convertStringToNumber(input)
-
 	if err != nil {
 		t.Errorf("unexpected error converting %s", input)
 	}
@@ -76,7 +77,6 @@ func TestNewTotoDraw(t *testing.T) {
 	inputAdditionalNumber := "36"
 
 	totoDraw, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
-
 	if err != nil {
 		t.Errorf("error in NewTotoDraw %v", err)
 	}
@@ -93,7 +93,6 @@ func TestNewTotoDraw(t *testing.T) {
 	if totoDraw.AdditionalNumber != expectedAdditionalNumber {
 		t.Errorf("was expecting %d but got %d instead", expectedAdditionalNumber, totoDraw.AdditionalNumber)
 	}
-
 }
 
 func TestNewTotoDrawWrongWinningNumberLength(t *testing.T) {
@@ -107,7 +106,6 @@ func TestNewTotoDrawWrongWinningNumberLength(t *testing.T) {
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
 	}
-
 }
 
 func TestNewTotoDrawDuplicateWinningNumber(t *testing.T) {
@@ -121,5 +119,81 @@ func TestNewTotoDrawDuplicateWinningNumber(t *testing.T) {
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
 	}
+}
 
+func TestEndpointNotAllowedMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	res := w.Result()
+	defer res.Body.Close()
+	_, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Errorf("expected error to be nil got %v", err)
+	}
+
+	expectedStatus := http.StatusMethodNotAllowed
+	actualStatus := res.StatusCode
+	if actualStatus != expectedStatus {
+		t.Errorf("expected %d to be nil got %d", expectedStatus, actualStatus)
+	}
+}
+
+func TestEndpointInvalidWinningNumbers(t *testing.T) {
+	serializedPayload := []byte(`{"winningNumbers": "01 02 03 04 05 06 07", "additionalNumber": "08"}`)
+	reader := bytes.NewReader(serializedPayload)
+
+	req := httptest.NewRequest(http.MethodPost, "/", reader)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	res := w.Result()
+	defer res.Body.Close()
+
+	expectedStatus := http.StatusBadRequest
+	actualStatus := res.StatusCode
+	if actualStatus != expectedStatus {
+		t.Errorf("expected status: %d got %d", expectedStatus, actualStatus)
+	}
+
+	var errorResponseBody ErrorResponseBody
+	err := json.NewDecoder(res.Body).Decode(&errorResponseBody)
+	if err != nil {
+		t.Errorf("expected error to be nil got %v", err)
+	}
+
+	expectedMessage := "winning numbers should only contain 6 numbers"
+	actualMessage := errorResponseBody.Message
+	if actualMessage != expectedMessage {
+		t.Errorf("expected %s got %s", expectedMessage, actualMessage)
+	}
+}
+
+func TestEndpointInvalidCharactersInWinningNumber(t *testing.T) {
+	serializedPayload := []byte(`{"winningNumbers": "01 02 03 04 05 06 a7", "additionalNumber": "08"}`)
+	reader := bytes.NewReader(serializedPayload)
+
+	req := httptest.NewRequest(http.MethodPost, "/", reader)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	res := w.Result()
+	defer res.Body.Close()
+
+	expectedStatus := http.StatusBadRequest
+	actualStatus := res.StatusCode
+	if actualStatus != expectedStatus {
+		t.Errorf("expected status: %d got %d", expectedStatus, actualStatus)
+	}
+
+	var errorResponseBody ErrorResponseBody
+
+	if err := json.NewDecoder(res.Body).Decode(&errorResponseBody); err != nil {
+		t.Errorf("expected error to be nil got %v", err)
+	}
+
+	expectedMessage := "unable to parse winning numbers"
+	actualMessage := errorResponseBody.Message
+
+	if actualMessage != expectedMessage {
+		t.Errorf("expected message: %s got %s", expectedMessage, actualMessage)
+	}
 }

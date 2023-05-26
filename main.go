@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"sort"
@@ -39,7 +38,6 @@ func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
 	}
 
 	addNum, err := convertStringToNumber(a)
-
 	if err != nil {
 		return TotoDraw{}, fmt.Errorf("unable to convert additional number: %s", a)
 	}
@@ -59,6 +57,8 @@ func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	m := r.Method
 
 	if m != http.MethodPost {
@@ -69,9 +69,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	var request Request
 
-	err := parseRequestBody(r, &request)
-
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		errorResponseBody := ErrorResponseBody{
 			Message: "error parsing request body",
@@ -81,10 +79,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	winningNumbers, err := convertStringToUniqueSortedNumbers(request.WinningNumbers)
-
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(""))
+		errorResponseBody := ErrorResponseBody{
+			Message: "unable to parse winning numbers",
+		}
+
+		json.NewEncoder(w).Encode(errorResponseBody)
 		return
 	}
 
@@ -94,26 +95,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			Message: "winning numbers should only contain 6 numbers",
 		}
 		json.NewEncoder(w).Encode(errorResponseBody)
-
 	}
-
-}
-
-func parseRequestBody(r *http.Request, data any) error {
-	parsed, err := io.ReadAll(io.LimitReader(r.Body, 1048576))
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	if err := r.Body.Close(); err != nil {
-		log.Println(err)
-		return err
-	}
-	if err := json.Unmarshal(parsed, data); err != nil {
-		log.Println(err)
-		return err
-	}
-	return nil
 }
 
 func main() {
