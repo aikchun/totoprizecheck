@@ -21,7 +21,12 @@ type Request struct {
 }
 
 type ErrorResponseBody struct {
+	Status  int    `json:"status"`
 	Message string `json:"message"`
+}
+
+type Response struct {
+	TotoDraw TotoDraw `json:"totoDraw"`
 }
 
 func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
@@ -72,30 +77,74 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		errorResponseBody := ErrorResponseBody{
+			Status:  400,
 			Message: "error parsing request body",
 		}
 		json.NewEncoder(w).Encode(errorResponseBody)
 		return
 	}
 
-	winningNumbers, err := convertStringToUniqueSortedNumbers(request.WinningNumbers)
+	res, err := lambdaHandler(request)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		errorResponseBody := ErrorResponseBody{
-			Message: "unable to parse winning numbers",
-		}
-
-		json.NewEncoder(w).Encode(errorResponseBody)
+		writeErrorHttp(w, err)
 		return
 	}
 
-	if len(winningNumbers) != 6 {
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
+}
+
+func writeErrorHttp(w http.ResponseWriter, err error) {
+	var errorResponseBody ErrorResponseBody
+	err = json.Unmarshal([]byte(fmt.Sprint(err)), &errorResponseBody)
+	if errorResponseBody.Status == http.StatusBadRequest {
 		w.WriteHeader(http.StatusBadRequest)
-		errorResponseBody := ErrorResponseBody{
-			Message: "winning numbers should only contain 6 numbers",
-		}
 		json.NewEncoder(w).Encode(errorResponseBody)
 	}
+}
+
+func writeError(e ErrorResponseBody) error {
+	eByte, _ := json.Marshal(e)
+	return fmt.Errorf(string(eByte))
+}
+
+func lambdaHandler(request Request) (Response, error) {
+	var response Response
+
+	winningNumbers, err := convertStringToUniqueSortedNumbers(request.WinningNumbers)
+	if err != nil {
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "unable to parse winning numbers",
+		}
+
+		return response, writeError(errorResponseBody)
+	}
+
+	if len(winningNumbers) != 6 {
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "winning numbers should only contain 6 numbers",
+		}
+		return response, writeError(errorResponseBody)
+	}
+
+	additionaNumber, err := convertStringToNumber(request.AdditionalNumber)
+	if err != nil {
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "unable to parse additional number",
+		}
+
+		return response, writeError(errorResponseBody)
+	}
+
+	response.TotoDraw = TotoDraw{
+		WinningNumbers:   winningNumbers,
+		AdditionalNumber: additionaNumber,
+	}
+
+	return response, nil
 }
 
 func main() {
