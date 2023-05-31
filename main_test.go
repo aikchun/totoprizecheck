@@ -264,3 +264,47 @@ func TestResponseWinningNumbers(t *testing.T) {
 		t.Errorf("expected Additional number : %d but got %d instead", expectedAdditionalNumber, totoDraw.AdditionalNumber)
 	}
 }
+
+func TestResponseWinningBet(t *testing.T) {
+	serializedPayload := []byte(`{"winningNumbers": "01 02 03 04 05 06", "additionalNumber": "07", "bets": ["1 2 3 4 5 6"]}`)
+	reader := bytes.NewReader(serializedPayload)
+
+	req := httptest.NewRequest(http.MethodPost, "/", reader)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	res := w.Result()
+	defer res.Body.Close()
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+	if actualStatus != expectedStatus {
+		t.Errorf("expected status: %d got %d", expectedStatus, actualStatus)
+	}
+
+	var response Response
+	err := json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		t.Errorf("expected error to be nil got %v", err)
+	}
+
+	totoDraw := response.TotoDraw
+
+	expectedWinningNumbers := []int{1, 2, 3, 4, 5, 6}
+	expectedAdditionalNumber := 7
+	for i, n := range expectedWinningNumbers {
+		if n != totoDraw.WinningNumbers[i] {
+			t.Errorf("expected winning numbers: %v but got %v instead", expectedWinningNumbers, response.TotoDraw.WinningNumbers)
+		}
+	}
+
+	if totoDraw.AdditionalNumber != expectedAdditionalNumber {
+		t.Errorf("expected Additional number : %d but got %d instead", expectedAdditionalNumber, totoDraw.AdditionalNumber)
+	}
+
+	expectedPrize := "$10"
+	actualPrize := response.Matches[0].Prize
+
+	if expectedPrize != actualPrize {
+		t.Errorf("expected prize: %s but got %s instead", expectedPrize, actualPrize)
+	}
+}

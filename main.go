@@ -12,12 +12,13 @@ import (
 
 type TotoDraw struct {
 	WinningNumbers   []int `json:"winningNumbers"`
-	AdditionalNumber int   `json:"additionaNumber"`
+	AdditionalNumber int   `json:"additionalNumber"`
 }
 
 type Request struct {
-	WinningNumbers   string `json:"winningNumbers"`
-	AdditionalNumber string `json:"additionalNumber"`
+	WinningNumbers   string   `json:"winningNumbers"`
+	AdditionalNumber string   `json:"additionalNumber"`
+	Bets             []string `json:"bets"`
 }
 
 type ErrorResponseBody struct {
@@ -26,7 +27,15 @@ type ErrorResponseBody struct {
 }
 
 type Response struct {
-	TotoDraw TotoDraw `json:"totoDraw"`
+	TotoDraw TotoDraw   `json:"totoDraw"`
+	Matches  []BetMatch `json:"bets"`
+}
+
+type BetMatch struct {
+	Numbers             []int  `json:"numbers"`
+	Matches             int    `json:"matches"`
+	HasAdditionalNumber bool   `json:"hasAdditionalNumber"`
+	Prize               string `json:"prize"`
 }
 
 func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
@@ -129,7 +138,7 @@ func lambdaHandler(request Request) (Response, error) {
 		return response, writeError(errorResponseBody)
 	}
 
-	additionaNumber, err := convertStringToNumber(request.AdditionalNumber)
+	additionalNumber, err := convertStringToNumber(request.AdditionalNumber)
 	if err != nil {
 		errorResponseBody := ErrorResponseBody{
 			Status:  400,
@@ -141,10 +150,54 @@ func lambdaHandler(request Request) (Response, error) {
 
 	response.TotoDraw = TotoDraw{
 		WinningNumbers:   winningNumbers,
-		AdditionalNumber: additionaNumber,
+		AdditionalNumber: additionalNumber,
 	}
 
+	matches := make([]BetMatch, len(request.Bets))
+
+	for i, bet := range request.Bets {
+		b, err := convertStringToUniqueSortedNumbers(bet)
+		if err != nil {
+			errorResponseBody := ErrorResponseBody{
+				Status:  400,
+				Message: fmt.Sprintf("unable to parse %s into numbers", bet),
+			}
+
+			return response, writeError(errorResponseBody)
+		}
+
+		match := matchBet(b, winningNumbers, additionalNumber)
+
+		matches[i] = match
+	}
+
+	response.Matches = matches
 	return response, nil
+}
+
+func matchBet(a []int, b []int, additionalNumber int) BetMatch {
+	count := 0
+	matchedAdditionalNumber := false
+	for _, n := range a {
+		for _, m := range b {
+			if n == m {
+				count += 1
+			}
+		}
+
+		if !matchedAdditionalNumber {
+			if n == additionalNumber {
+				matchedAdditionalNumber = true
+			}
+		}
+	}
+
+	return BetMatch{
+		Numbers:             a,
+		Matches:             count,
+		HasAdditionalNumber: matchedAdditionalNumber,
+		Prize:               "$10",
+	}
 }
 
 func main() {
