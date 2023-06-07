@@ -33,7 +33,8 @@ type Response struct {
 
 type BetMatch struct {
 	Numbers             []int  `json:"numbers"`
-	Matches             int    `json:"matches"`
+	BetType             string `json:"betType"`
+	NumbersMatched      int    `json:"numbersMatched"`
 	HasAdditionalNumber bool   `json:"hasAdditionalNumber"`
 	Prize               string `json:"prize"`
 }
@@ -175,11 +176,11 @@ func lambdaHandler(request Request) (Response, error) {
 	return response, nil
 }
 
-func matchBet(a []int, b []int, additionalNumber int) BetMatch {
+func matchBet(bet []int, winningNumbers []int, additionalNumber int) BetMatch {
 	count := 0
 	matchedAdditionalNumber := false
-	for _, n := range a {
-		for _, m := range b {
+	for _, n := range bet {
+		for _, m := range winningNumbers {
 			if n == m {
 				count += 1
 			}
@@ -192,12 +193,240 @@ func matchBet(a []int, b []int, additionalNumber int) BetMatch {
 		}
 	}
 
+	betType := getBetType(len(bet))
+
 	return BetMatch{
-		Numbers:             a,
-		Matches:             count,
+		Numbers:             bet,
+		BetType:             betType,
+		NumbersMatched:      count,
 		HasAdditionalNumber: matchedAdditionalNumber,
-		Prize:               "$10",
+		Prize:               calculatePrize(betType, count, matchedAdditionalNumber),
 	}
+}
+
+func getBetType(length int) string {
+	switch length {
+	case 6:
+		return "Ordinary"
+	case 7, 8, 9, 10, 11, 12:
+		return fmt.Sprintf("System %d", length)
+	}
+	return "unknown"
+}
+
+func calculatePrize(betType string, numbersMatched int, hasAdditionalNumber bool) string {
+	switch betType {
+	case "Ordinary":
+		return calculateOrdinaryPrize(numbersMatched, hasAdditionalNumber)
+	case "System 7":
+		return calculateSystemSevenPrize(numbersMatched, hasAdditionalNumber)
+	case "System 8":
+		return calculateSystemEightPrize(numbersMatched, hasAdditionalNumber)
+	case "System 9":
+		return calculateSystemNinePrize(numbersMatched, hasAdditionalNumber)
+	case "System 10":
+		return calculateSystemTenPrize(numbersMatched, hasAdditionalNumber)
+	case "System 11":
+		return calculateSystemElevenPrize(numbersMatched, hasAdditionalNumber)
+	case "System 12":
+		return calculateSystemTwelvePrize(numbersMatched, hasAdditionalNumber)
+	}
+	return ""
+}
+
+func calculateOrdinaryPrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$10"
+		case 4:
+			return "$50"
+		case 5:
+			return "Group 3"
+		case 6:
+			return "Group 1"
+
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$25"
+	case 4:
+		return "Group 4"
+	case 5:
+		return "Group 2"
+	}
+
+	return "unknown"
+}
+
+func calculateSystemSevenPrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$40"
+		case 4:
+			return "$190"
+		case 5:
+			return "Group 3 + $250"
+		case 6:
+			return "Group 1 + 3"
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$85"
+	case 4:
+		return "Group 4 + $150"
+	case 5:
+		return "Group 2 + 3 + 4"
+	case 6:
+		return "Group 1 + 2"
+	}
+
+	return "unknown"
+}
+
+func calculateSystemEightPrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$100"
+		case 4:
+			return "$460"
+		case 5:
+			return "Group 3 + $850"
+		case 6:
+			return "Group 1 + 3 + $750"
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$190"
+	case 4:
+		return "Group 4 + $490"
+	case 5:
+		return "Group 2 + 3 + 4 + $500"
+	case 6:
+		return "Group 1 + 2 + 3 + 4"
+	}
+
+	return "unknown"
+}
+
+func calculateSystemNinePrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$200"
+		case 4:
+			return "$900"
+		case 5:
+			return "Group 3 + $1,900"
+		case 6:
+			return "Group 1 + 3 + $2,450"
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$350"
+	case 4:
+		return "Group 4 + $1,060"
+	case 5:
+		return "Group 2 + 3 + 4 + $1,600"
+	case 6:
+		return "Group 1 + 2 + 3 + 4 + $1,250"
+	}
+
+	return "unknown"
+}
+
+func calculateSystemTenPrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$350"
+		case 4:
+			return "$1,550"
+		case 5:
+			return "Group 3 + $3,500"
+		case 6:
+			return "Group 1 + 3 + $5,300"
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$575"
+	case 4:
+		return "Group 4 + $1,900"
+	case 5:
+		return "Group 2 + 3 + 4 + $3,400"
+	case 6:
+		return "Group 1 + 2 + 3 + 4 + $3,950"
+	}
+
+	return "unknown"
+}
+
+func calculateSystemElevenPrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$560"
+		case 4:
+			return "$2,450"
+		case 5:
+			return "Group 3 + $5,750"
+		case 6:
+			return "Group 1 + 3 + $9,500"
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$875"
+	case 4:
+		return "Group 4 + $3,050"
+	case 5:
+		return "Group 2 + 3 + 4 + $6,000"
+	case 6:
+		return "Group 1 + 2 + 3 + 4 + $8,300"
+	}
+
+	return "unknown"
+}
+
+func calculateSystemTwelvePrize(numbersMatched int, hasAdditionalNumber bool) string {
+	if !hasAdditionalNumber {
+		switch numbersMatched {
+		case 3:
+			return "$840"
+		case 4:
+			return "$3,640"
+		case 5:
+			return "Group 3 + $8,750"
+		case 6:
+			return "Group 1 + 3 + $15,250"
+		}
+	}
+
+	switch numbersMatched {
+	case 3:
+		return "$1,260"
+	case 4:
+		return "Group 4 + $4,550"
+	case 5:
+		return "Group 2 + 3 + 4 + $9,500"
+	case 6:
+		return "Group 1 + 2 + 3 + 4 + $14,500"
+	}
+
+	return "unknown"
 }
 
 func main() {
