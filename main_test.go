@@ -14,7 +14,7 @@ func TestNewTotoDraw(t *testing.T) {
 	inputWinningNumbers := "7 13 18 19 25 29"
 	inputAdditionalNumber := "36"
 
-	totoDraw, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+	totoDraw, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 	if err != nil {
 		t.Errorf("error in NewTotoDraw %v", err)
 	}
@@ -37,9 +37,9 @@ func TestNewTotoDrawWrongWinningNumberLength(t *testing.T) {
 	inputWinningNumbers := "7 13 18 19 25 29 30"
 	inputAdditionalNumber := "36"
 
-	_, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 
-	expectedErrorString := "NewTotoDraw error: winning numbers should only have a length of 6"
+	expectedErrorString := "{\"status\":400,\"message\":\"winning numbers should only contain 6 numbers\"}"
 	actualErrorString := fmt.Sprint(err)
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
@@ -50,9 +50,22 @@ func TestNewTotoDrawDuplicateWinningNumber(t *testing.T) {
 	inputWinningNumbers := "7 13 18 19 29 29"
 	inputAdditionalNumber := "36"
 
-	_, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 
-	expectedErrorString := "NewTotoDraw error: convertStringToUniqueSortedNumbers error: should not have duplicate numbers"
+	expectedErrorString := "{\"status\":400,\"message\":\"unable to parse winning numbers\"}"
+	actualErrorString := fmt.Sprint(err)
+	if actualErrorString != expectedErrorString {
+		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
+	}
+}
+
+func TestNewTotoDrawDuplicateWinningNumberInAdditionalNumber(t *testing.T) {
+	inputWinningNumbers := "7 13 18 19 29 36"
+	inputAdditionalNumber := "36"
+
+	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+
+	expectedErrorString := "{\"status\":400,\"message\":\"duplicate number found in additional number\"}"
 	actualErrorString := fmt.Sprint(err)
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)

@@ -11,8 +11,37 @@ import (
 )
 
 type TotoDraw struct {
-	WinningNumbers   []int `json:"winningNumbers"`
-	AdditionalNumber int   `json:"additionalNumber"`
+	WinningNumbers   WinningNumbers `json:"winningNumbers"`
+	AdditionalNumber int            `json:"additionalNumber"`
+}
+
+func (t TotoDraw) Match(bet Bet) BetResult {
+	count := 0
+	matchedAdditionalNumber := false
+	for _, n := range bet {
+		if t.WinningNumbers.Contains(n) {
+			count += 1
+			continue
+		}
+
+		if matchedAdditionalNumber {
+			continue
+		}
+
+		if n == t.AdditionalNumber {
+			matchedAdditionalNumber = true
+		}
+	}
+
+	betType := getBetType(len(bet))
+
+	return BetResult{
+		Numbers:             bet,
+		BetType:             betType,
+		NumbersMatched:      count,
+		HasAdditionalNumber: matchedAdditionalNumber,
+		Prize:               prizetable.GetPrize(betType, count, matchedAdditionalNumber),
+	}
 }
 
 type Request struct {
@@ -51,27 +80,45 @@ type BetResult struct {
 	Prize               string `json:"prize"`
 }
 
-func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
+func newTotoDraw(numbers string, a string) (TotoDraw, error) {
+	var totoDraw TotoDraw
 	sortedNumbers, err := stringutils.ConvertStringToUniqueSortedNumbers(numbers)
 
-	errorPreText := "NewTotoDraw error:"
-
 	if err != nil {
-		return TotoDraw{}, fmt.Errorf("%s %s", errorPreText, err)
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "unable to parse winning numbers",
+		}
+
+		return totoDraw, writeError(errorResponseBody)
 	}
 
 	if len(sortedNumbers) != 6 {
-		return TotoDraw{}, fmt.Errorf("%s winning numbers should only have a length of 6", errorPreText)
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "winning numbers should only contain 6 numbers",
+		}
+		return totoDraw, writeError(errorResponseBody)
 	}
 
 	addNum, err := stringutils.ConvertStringToNumber(a)
 	if err != nil {
-		return TotoDraw{}, fmt.Errorf("unable to convert additional number: %s", a)
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "unable to parse additional number",
+		}
+
+		return totoDraw, writeError(errorResponseBody)
 	}
 
 	for _, n := range sortedNumbers {
 		if n == addNum {
-			return TotoDraw{}, fmt.Errorf("duplicate number found in additional number")
+			errorResponseBody := ErrorResponseBody{
+				Status:  400,
+				Message: "duplicate number found in additional number",
+			}
+
+			return totoDraw, writeError(errorResponseBody)
 		}
 	}
 
@@ -133,37 +180,9 @@ func writeError(e ErrorResponseBody) error {
 func lambdaHandler(request Request) (Response, error) {
 	var response Response
 
-	winningNumbers, err := stringutils.ConvertStringToUniqueSortedNumbers(request.WinningNumbers)
+	totoDraw, err := newTotoDraw(request.WinningNumbers, request.AdditionalNumber)
 	if err != nil {
-		errorResponseBody := ErrorResponseBody{
-			Status:  400,
-			Message: "unable to parse winning numbers",
-		}
-
-		return response, writeError(errorResponseBody)
-	}
-
-	if len(winningNumbers) != 6 {
-		errorResponseBody := ErrorResponseBody{
-			Status:  400,
-			Message: "winning numbers should only contain 6 numbers",
-		}
-		return response, writeError(errorResponseBody)
-	}
-
-	additionalNumber, err := stringutils.ConvertStringToNumber(request.AdditionalNumber)
-	if err != nil {
-		errorResponseBody := ErrorResponseBody{
-			Status:  400,
-			Message: "unable to parse additional number",
-		}
-
-		return response, writeError(errorResponseBody)
-	}
-
-	response.TotoDraw = TotoDraw{
-		WinningNumbers:   winningNumbers,
-		AdditionalNumber: additionalNumber,
+		return response, err
 	}
 
 	bets, err := convertBetStringsToBets(request.Bets)
@@ -179,10 +198,11 @@ func lambdaHandler(request Request) (Response, error) {
 	results := make([]BetResult, len(bets))
 
 	for i, bet := range bets {
-		betResult := createBetResult(bet, winningNumbers, additionalNumber)
+		betResult := totoDraw.Match(bet)
 		results[i] = betResult
 	}
 
+	response.TotoDraw = totoDraw
 	response.Results = results
 	return response, nil
 }
