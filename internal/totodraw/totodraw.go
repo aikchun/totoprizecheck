@@ -29,6 +29,18 @@ func (w WinningNumbers) Contains(i int) bool {
 	return false
 }
 
+func (w WinningNumbers) IsValid() bool {
+	m := make(map[int]bool)
+	for _, n := range w {
+		if _, found := m[n]; found {
+			return false
+		} else {
+			m[n] = true
+		}
+	}
+	return true
+}
+
 type TotoDraw struct {
 	WinningNumbers   WinningNumbers `json:"winningNumbers"`
 	AdditionalNumber int            `json:"additionalNumber"`
@@ -46,4 +58,20 @@ type BetResult struct {
 	NumbersMatched      int    `json:"numbersMatched"`
 	HasAdditionalNumber bool   `json:"hasAdditionalNumber"`
 	Prize               string `json:"prize"`
+}
+
+func NewTotoDraw(w WinningNumbers, a int) (TotoDraw, error) {
+	if !w.IsValid() {
+		return TotoDraw{}, fmt.Errorf("duplicate number found in winning number")
+	}
+	for _, n := range w {
+		if n == a {
+			return TotoDraw{}, fmt.Errorf("duplicate number found in additional number")
+		}
+	}
+
+	return TotoDraw{
+		WinningNumbers:   w,
+		AdditionalNumber: a,
+	}, nil
 }

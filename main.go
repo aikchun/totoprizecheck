@@ -57,23 +57,17 @@ func newTotoDraw(numbers string, a string) (totodraw.TotoDraw, error) {
 		return totoDraw, writeError(errorResponseBody)
 	}
 
-	for _, n := range sortedNumbers {
-		if n == addNum {
-			errorResponseBody := ErrorResponseBody{
-				Status:  400,
-				Message: "duplicate number found in additional number",
-			}
-
-			return totoDraw, writeError(errorResponseBody)
+	d, err := totodraw.NewTotoDraw(sortedNumbers, addNum)
+	if err != nil {
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: err.Error(),
 		}
+
+		return totoDraw, writeError(errorResponseBody)
 	}
 
-	n := totodraw.TotoDraw{
-		WinningNumbers:   sortedNumbers,
-		AdditionalNumber: addNum,
-	}
-
-	return n, nil
+	return d, err
 }
 
 func mapBetStringsToBets(betStrings []string) ([]totodraw.Bet, error) {
