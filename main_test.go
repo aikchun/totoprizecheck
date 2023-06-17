@@ -52,7 +52,7 @@ func TestNewTotoDrawDuplicateWinningNumber(t *testing.T) {
 
 	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 
-	expectedErrorString := "{\"status\":400,\"message\":\"unable to parse winning numbers\"}"
+	expectedErrorString := "{\"status\":400,\"message\":\"convertStringToUniqueSortedNumbers error: should not have duplicate numbers\"}"
 	actualErrorString := fmt.Sprint(err)
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
@@ -141,7 +141,7 @@ func TestEndpointInvalidCharactersInWinningNumber(t *testing.T) {
 		t.Errorf("expected error to be nil got %v", err)
 	}
 
-	expectedMessage := "unable to parse winning numbers"
+	expectedMessage := "convertStringToUniqueSortedNumbers error: fail to convert a7, in string: [01 02 03 04 05 06 a7]"
 	actualMessage := errorResponseBody.Message
 
 	if actualMessage != expectedMessage {

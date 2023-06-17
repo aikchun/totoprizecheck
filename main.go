@@ -33,7 +33,7 @@ func newTotoDraw(numbers string, a string) (totodraw.TotoDraw, error) {
 	if err != nil {
 		errorResponseBody := ErrorResponseBody{
 			Status:  400,
-			Message: "unable to parse winning numbers",
+			Message: err.Error(),
 		}
 
 		return totoDraw, writeError(errorResponseBody)

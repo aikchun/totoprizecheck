@@ -61,9 +61,6 @@ type BetResult struct {
 }
 
 func NewTotoDraw(w WinningNumbers, a int) (TotoDraw, error) {
-	if !w.IsValid() {
-		return TotoDraw{}, fmt.Errorf("duplicate number found in winning number")
-	}
 	for _, n := range w {
 		if n == a {
 			return TotoDraw{}, fmt.Errorf("duplicate number found in additional number")
