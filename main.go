@@ -8,41 +8,8 @@ import (
 
 	"github.com/aikchun/totoprizecheck/internal/prizetable"
 	"github.com/aikchun/totoprizecheck/internal/stringutils"
+	"github.com/aikchun/totoprizecheck/internal/totodraw"
 )
-
-type TotoDraw struct {
-	WinningNumbers   WinningNumbers `json:"winningNumbers"`
-	AdditionalNumber int            `json:"additionalNumber"`
-}
-
-func (t TotoDraw) Match(bet Bet) BetResult {
-	count := 0
-	matchedAdditionalNumber := false
-	for _, n := range bet {
-		if t.WinningNumbers.Contains(n) {
-			count += 1
-			continue
-		}
-
-		if matchedAdditionalNumber {
-			continue
-		}
-
-		if n == t.AdditionalNumber {
-			matchedAdditionalNumber = true
-		}
-	}
-
-	betType := getBetType(len(bet))
-
-	return BetResult{
-		Numbers:             bet,
-		BetType:             betType,
-		NumbersMatched:      count,
-		HasAdditionalNumber: matchedAdditionalNumber,
-		Prize:               prizetable.GetPrize(betType, count, matchedAdditionalNumber),
-	}
-}
 
 type Request struct {
 	WinningNumbers   string   `json:"winningNumbers"`
@@ -56,34 +23,13 @@ type ErrorResponseBody struct {
 }
 
 type Response struct {
-	TotoDraw TotoDraw    `json:"totoDraw"`
-	Results  []BetResult `json:"results"`
+	TotoDraw totodraw.TotoDraw    `json:"totoDraw"`
+	Results  []totodraw.BetResult `json:"results"`
 }
 
-type Bet []int
-type WinningNumbers []int
-
-func (w WinningNumbers) Contains(i int) bool {
-	for _, n := range w {
-		if n == i {
-			return true
-		}
-	}
-	return false
-}
-
-type BetResult struct {
-	Numbers             []int  `json:"numbers"`
-	BetType             string `json:"betType"`
-	NumbersMatched      int    `json:"numbersMatched"`
-	HasAdditionalNumber bool   `json:"hasAdditionalNumber"`
-	Prize               string `json:"prize"`
-}
-
-func newTotoDraw(numbers string, a string) (TotoDraw, error) {
-	var totoDraw TotoDraw
+func newTotoDraw(numbers string, a string) (totodraw.TotoDraw, error) {
+	var totoDraw totodraw.TotoDraw
 	sortedNumbers, err := stringutils.ConvertStringToUniqueSortedNumbers(numbers)
-
 	if err != nil {
 		errorResponseBody := ErrorResponseBody{
 			Status:  400,
@@ -122,12 +68,56 @@ func newTotoDraw(numbers string, a string) (TotoDraw, error) {
 		}
 	}
 
-	n := TotoDraw{
+	n := totodraw.TotoDraw{
 		WinningNumbers:   sortedNumbers,
 		AdditionalNumber: addNum,
 	}
 
 	return n, nil
+}
+
+func mapBetStringsToBets(betStrings []string) ([]totodraw.Bet, error) {
+	bets := make([]totodraw.Bet, len(betStrings))
+
+	for i, b := range betStrings {
+		bet, err := stringutils.ConvertStringToUniqueSortedNumbers(b)
+		if err != nil {
+			return []totodraw.Bet{}, err
+		}
+
+		bets[i] = bet
+
+	}
+	return bets, nil
+}
+
+func matchTotoDrawWithBet(t totodraw.TotoDraw, bet totodraw.Bet) totodraw.BetResult {
+	count := 0
+	matchedAdditionalNumber := false
+	for _, n := range bet {
+		if t.WinningNumbers.Contains(n) {
+			count += 1
+			continue
+		}
+
+		if matchedAdditionalNumber {
+			continue
+		}
+
+		if n == t.AdditionalNumber {
+			matchedAdditionalNumber = true
+		}
+	}
+
+	betType := bet.GetBetType()
+
+	return totodraw.BetResult{
+		Numbers:             bet,
+		BetType:             betType,
+		NumbersMatched:      count,
+		HasAdditionalNumber: matchedAdditionalNumber,
+		Prize:               prizetable.GetPrize(betType, count, matchedAdditionalNumber),
+	}
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -180,12 +170,12 @@ func writeError(e ErrorResponseBody) error {
 func lambdaHandler(request Request) (Response, error) {
 	var response Response
 
-	totoDraw, err := newTotoDraw(request.WinningNumbers, request.AdditionalNumber)
+	draw, err := newTotoDraw(request.WinningNumbers, request.AdditionalNumber)
 	if err != nil {
 		return response, err
 	}
 
-	bets, err := convertBetStringsToBets(request.Bets)
+	bets, err := mapBetStringsToBets(request.Bets)
 	if err != nil {
 		errorResponseBody := ErrorResponseBody{
 			Status:  400,
@@ -195,70 +185,16 @@ func lambdaHandler(request Request) (Response, error) {
 		return response, writeError(errorResponseBody)
 	}
 
-	results := make([]BetResult, len(bets))
+	results := make([]totodraw.BetResult, len(bets))
 
 	for i, bet := range bets {
-		betResult := totoDraw.Match(bet)
+		betResult := matchTotoDrawWithBet(draw, bet)
 		results[i] = betResult
 	}
 
-	response.TotoDraw = totoDraw
+	response.TotoDraw = draw
 	response.Results = results
 	return response, nil
-}
-
-func convertBetStringsToBets(betStrings []string) ([]Bet, error) {
-	bets := make([]Bet, len(betStrings))
-
-	for i, b := range betStrings {
-		bet, err := stringutils.ConvertStringToUniqueSortedNumbers(b)
-		if err != nil {
-			return []Bet{}, err
-		}
-
-		bets[i] = bet
-
-	}
-	return bets, nil
-}
-
-func createBetResult(bet Bet, winningNumbers WinningNumbers, additionalNumber int) BetResult {
-	count := 0
-	matchedAdditionalNumber := false
-	for _, n := range bet {
-		if winningNumbers.Contains(n) {
-			count += 1
-			continue
-		}
-
-		if matchedAdditionalNumber {
-			continue
-		}
-
-		if n == additionalNumber {
-			matchedAdditionalNumber = true
-		}
-	}
-
-	betType := getBetType(len(bet))
-
-	return BetResult{
-		Numbers:             bet,
-		BetType:             betType,
-		NumbersMatched:      count,
-		HasAdditionalNumber: matchedAdditionalNumber,
-		Prize:               prizetable.GetPrize(betType, count, matchedAdditionalNumber),
-	}
-}
-
-func getBetType(length int) string {
-	switch length {
-	case 6:
-		return "Ordinary"
-	case 7, 8, 9, 10, 11, 12:
-		return fmt.Sprintf("System %d", length)
-	}
-	return "unknown"
 }
 
 func main() {
