@@ -27,11 +27,23 @@ type ErrorResponseBody struct {
 }
 
 type Response struct {
-	TotoDraw TotoDraw   `json:"totoDraw"`
-	Matches  []BetMatch `json:"bets"`
+	TotoDraw TotoDraw    `json:"totoDraw"`
+	Results  []BetResult `json:"results"`
 }
 
-type BetMatch struct {
+type Bet []int
+type WinningNumbers []int
+
+func (w WinningNumbers) Contains(i int) bool {
+	for _, n := range w {
+		if n == i {
+			return true
+		}
+	}
+	return false
+}
+
+type BetResult struct {
 	Numbers             []int  `json:"numbers"`
 	BetType             string `json:"betType"`
 	NumbersMatched      int    `json:"numbersMatched"`
@@ -154,48 +166,63 @@ func lambdaHandler(request Request) (Response, error) {
 		AdditionalNumber: additionalNumber,
 	}
 
-	matches := make([]BetMatch, len(request.Bets))
-
-	for i, bet := range request.Bets {
-		b, err := convertStringToUniqueSortedNumbers(bet)
-		if err != nil {
-			errorResponseBody := ErrorResponseBody{
-				Status:  400,
-				Message: fmt.Sprintf("unable to parse %s into numbers", bet),
-			}
-
-			return response, writeError(errorResponseBody)
+	bets, err := convertBetStringsToBets(request.Bets)
+	if err != nil {
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: err.Error(),
 		}
 
-		match := matchBet(b, winningNumbers, additionalNumber)
-
-		matches[i] = match
+		return response, writeError(errorResponseBody)
 	}
 
-	response.Matches = matches
+	results := make([]BetResult, len(bets))
+
+	for i, bet := range bets {
+		betResult := createBetResult(bet, winningNumbers, additionalNumber)
+		results[i] = betResult
+	}
+
+	response.Results = results
 	return response, nil
 }
 
-func matchBet(bet []int, winningNumbers []int, additionalNumber int) BetMatch {
+func convertBetStringsToBets(betStrings []string) ([]Bet, error) {
+	bets := make([]Bet, len(betStrings))
+
+	for i, b := range betStrings {
+		bet, err := convertStringToUniqueSortedNumbers(b)
+		if err != nil {
+			return []Bet{}, err
+		}
+
+		bets[i] = bet
+
+	}
+	return bets, nil
+}
+
+func createBetResult(bet Bet, winningNumbers WinningNumbers, additionalNumber int) BetResult {
 	count := 0
 	matchedAdditionalNumber := false
 	for _, n := range bet {
-		for _, m := range winningNumbers {
-			if n == m {
-				count += 1
-			}
+		if winningNumbers.Contains(n) {
+			count += 1
+			continue
 		}
 
-		if !matchedAdditionalNumber {
-			if n == additionalNumber {
-				matchedAdditionalNumber = true
-			}
+		if matchedAdditionalNumber {
+			continue
+		}
+
+		if n == additionalNumber {
+			matchedAdditionalNumber = true
 		}
 	}
 
 	betType := getBetType(len(bet))
 
-	return BetMatch{
+	return BetResult{
 		Numbers:             bet,
 		BetType:             betType,
 		NumbersMatched:      count,
@@ -217,24 +244,24 @@ func getBetType(length int) string {
 func calculatePrize(betType string, numbersMatched int, hasAdditionalNumber bool) string {
 	switch betType {
 	case "Ordinary":
-		return calculateOrdinaryPrize(numbersMatched, hasAdditionalNumber)
+		return getOrdinaryPrize(numbersMatched, hasAdditionalNumber)
 	case "System 7":
-		return calculateSystemSevenPrize(numbersMatched, hasAdditionalNumber)
+		return getSystemSevenPrize(numbersMatched, hasAdditionalNumber)
 	case "System 8":
-		return calculateSystemEightPrize(numbersMatched, hasAdditionalNumber)
+		return getSystemEightPrize(numbersMatched, hasAdditionalNumber)
 	case "System 9":
-		return calculateSystemNinePrize(numbersMatched, hasAdditionalNumber)
+		return getSystemNinePrize(numbersMatched, hasAdditionalNumber)
 	case "System 10":
-		return calculateSystemTenPrize(numbersMatched, hasAdditionalNumber)
+		return getSystemTenPrize(numbersMatched, hasAdditionalNumber)
 	case "System 11":
-		return calculateSystemElevenPrize(numbersMatched, hasAdditionalNumber)
+		return getSystemElevenPrize(numbersMatched, hasAdditionalNumber)
 	case "System 12":
-		return calculateSystemTwelvePrize(numbersMatched, hasAdditionalNumber)
+		return getSystemTwelvePrize(numbersMatched, hasAdditionalNumber)
 	}
 	return ""
 }
 
-func calculateOrdinaryPrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getOrdinaryPrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:
@@ -261,7 +288,7 @@ func calculateOrdinaryPrize(numbersMatched int, hasAdditionalNumber bool) string
 	return "unknown"
 }
 
-func calculateSystemSevenPrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getSystemSevenPrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:
@@ -289,7 +316,7 @@ func calculateSystemSevenPrize(numbersMatched int, hasAdditionalNumber bool) str
 	return "unknown"
 }
 
-func calculateSystemEightPrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getSystemEightPrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:
@@ -317,7 +344,7 @@ func calculateSystemEightPrize(numbersMatched int, hasAdditionalNumber bool) str
 	return "unknown"
 }
 
-func calculateSystemNinePrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getSystemNinePrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:
@@ -345,7 +372,7 @@ func calculateSystemNinePrize(numbersMatched int, hasAdditionalNumber bool) stri
 	return "unknown"
 }
 
-func calculateSystemTenPrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getSystemTenPrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:
@@ -373,7 +400,7 @@ func calculateSystemTenPrize(numbersMatched int, hasAdditionalNumber bool) strin
 	return "unknown"
 }
 
-func calculateSystemElevenPrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getSystemElevenPrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:
@@ -401,7 +428,7 @@ func calculateSystemElevenPrize(numbersMatched int, hasAdditionalNumber bool) st
 	return "unknown"
 }
 
-func calculateSystemTwelvePrize(numbersMatched int, hasAdditionalNumber bool) string {
+func getSystemTwelvePrize(numbersMatched int, hasAdditionalNumber bool) string {
 	if !hasAdditionalNumber {
 		switch numbersMatched {
 		case 3:

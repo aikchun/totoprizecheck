@@ -302,7 +302,7 @@ func TestResponseWinningBet(t *testing.T) {
 	}
 
 	expectedPrize := "Group 1"
-	actualPrize := response.Matches[0].Prize
+	actualPrize := response.Results[0].Prize
 
 	if expectedPrize != actualPrize {
 		t.Errorf("expected prize: %s but got %s instead", expectedPrize, actualPrize)
@@ -310,14 +310,14 @@ func TestResponseWinningBet(t *testing.T) {
 
 	expectedNumbersMatched := 6
 
-	actualNumbersMatched := response.Matches[0].NumbersMatched
+	actualNumbersMatched := response.Results[0].NumbersMatched
 
 	if expectedNumbersMatched != actualNumbersMatched {
 		t.Errorf("expected matches: %d but got %d instead", expectedNumbersMatched, actualNumbersMatched)
 	}
 
 	expectedHasAdditionalNumber := false
-	actualHasAdditionalNumber := response.Matches[0].HasAdditionalNumber
+	actualHasAdditionalNumber := response.Results[0].HasAdditionalNumber
 
 	if expectedHasAdditionalNumber != actualHasAdditionalNumber {
 		t.Errorf("expected matches: %t but got %t instead", expectedHasAdditionalNumber, actualHasAdditionalNumber)
@@ -361,28 +361,28 @@ func TestResponseGroupTwoBet(t *testing.T) {
 	}
 
 	expectedBetType := "Ordinary"
-	actualBetType := response.Matches[0].BetType
+	actualBetType := response.Results[0].BetType
 
 	if expectedBetType != actualBetType {
 		t.Errorf("expected prize: %s but got %s instead", expectedBetType, actualBetType)
 	}
 
 	expectedPrize := "Group 2"
-	actualPrize := response.Matches[0].Prize
+	actualPrize := response.Results[0].Prize
 
 	if expectedPrize != actualPrize {
 		t.Errorf("expected prize: %s but got %s instead", expectedPrize, actualPrize)
 	}
 
 	expectedNumbersMatched := 5
-	actualNumbersMatched := response.Matches[0].NumbersMatched
+	actualNumbersMatched := response.Results[0].NumbersMatched
 
 	if expectedNumbersMatched != actualNumbersMatched {
 		t.Errorf("expected matches: %d but got %d instead", expectedNumbersMatched, actualNumbersMatched)
 	}
 
 	expectedHasAdditionalNumber := true
-	actualHasAdditionalNumber := response.Matches[0].HasAdditionalNumber
+	actualHasAdditionalNumber := response.Results[0].HasAdditionalNumber
 
 	if expectedHasAdditionalNumber != actualHasAdditionalNumber {
 		t.Errorf("expected matches: %t but got %t instead", expectedHasAdditionalNumber, actualHasAdditionalNumber)
