@@ -5,19 +5,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
-	"strconv"
-	"strings"
+
+	"github.com/aikchun/totoprizecheck/internal/prizetable"
+	"github.com/aikchun/totoprizecheck/internal/stringutils"
+	"github.com/aikchun/totoprizecheck/internal/totodraw"
 )
 
-type TotoDraw struct {
-	WinningNumbers   []int `json:"winningNumbers"`
-	AdditionalNumber int   `json:"additionaNumber"`
-}
-
 type Request struct {
-	WinningNumbers   string `json:"winningNumbers"`
-	AdditionalNumber string `json:"additionalNumber"`
+	WinningNumbers   string   `json:"winningNumbers"`
+	AdditionalNumber string   `json:"additionalNumber"`
+	Bets             []string `json:"bets"`
 }
 
 type ErrorResponseBody struct {
@@ -26,39 +23,95 @@ type ErrorResponseBody struct {
 }
 
 type Response struct {
-	TotoDraw TotoDraw `json:"totoDraw"`
+	TotoDraw totodraw.TotoDraw    `json:"totoDraw"`
+	Results  []totodraw.BetResult `json:"results"`
 }
 
-func NewTotoDraw(numbers string, a string) (TotoDraw, error) {
-	sortedNumbers, err := convertStringToUniqueSortedNumbers(numbers)
-
-	errorPreText := "NewTotoDraw error:"
-
+func newTotoDraw(numbers string, a string) (totodraw.TotoDraw, error) {
+	var totoDraw totodraw.TotoDraw
+	sortedNumbers, err := stringutils.ConvertStringToUniqueSortedNumbers(numbers)
 	if err != nil {
-		return TotoDraw{}, fmt.Errorf("%s %s", errorPreText, err)
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: err.Error(),
+		}
+
+		return totoDraw, writeError(errorResponseBody)
 	}
 
 	if len(sortedNumbers) != 6 {
-		return TotoDraw{}, fmt.Errorf("%s winning numbers should only have a length of 6", errorPreText)
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "winning numbers should only contain 6 numbers",
+		}
+		return totoDraw, writeError(errorResponseBody)
 	}
 
-	addNum, err := convertStringToNumber(a)
+	addNum, err := stringutils.ConvertStringToNumber(a)
 	if err != nil {
-		return TotoDraw{}, fmt.Errorf("unable to convert additional number: %s", a)
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: "unable to parse additional number",
+		}
+
+		return totoDraw, writeError(errorResponseBody)
 	}
 
-	for _, n := range sortedNumbers {
-		if n == addNum {
-			return TotoDraw{}, fmt.Errorf("duplicate number found in additional number")
+	d, err := totodraw.NewTotoDraw(sortedNumbers, addNum)
+	if err != nil {
+		errorResponseBody := ErrorResponseBody{
+			Status:  400,
+			Message: err.Error(),
+		}
+
+		return totoDraw, writeError(errorResponseBody)
+	}
+
+	return d, err
+}
+
+func mapBetStringsToBets(betStrings []string) ([]totodraw.Bet, error) {
+	bets := make([]totodraw.Bet, len(betStrings))
+
+	for i, b := range betStrings {
+		bet, err := stringutils.ConvertStringToUniqueSortedNumbers(b)
+		if err != nil {
+			return []totodraw.Bet{}, err
+		}
+
+		bets[i] = bet
+
+	}
+	return bets, nil
+}
+
+func matchTotoDrawWithBet(t totodraw.TotoDraw, bet totodraw.Bet) totodraw.BetResult {
+	count := 0
+	matchedAdditionalNumber := false
+	for _, n := range bet {
+		if t.WinningNumbers.Contains(n) {
+			count += 1
+			continue
+		}
+
+		if matchedAdditionalNumber {
+			continue
+		}
+
+		if n == t.AdditionalNumber {
+			matchedAdditionalNumber = true
 		}
 	}
 
-	n := TotoDraw{
-		WinningNumbers:   sortedNumbers,
-		AdditionalNumber: addNum,
-	}
+	betType := bet.GetBetType()
 
-	return n, nil
+	return totodraw.BetResult{
+		Numbers:             bet,
+		BetType:             betType,
+		NumbersMatched:      count,
+		HasAdditionalNumber: matchedAdditionalNumber,
+		Prize:               prizetable.GetPrize(betType, count, matchedAdditionalNumber),
+	}
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -111,39 +164,30 @@ func writeError(e ErrorResponseBody) error {
 func lambdaHandler(request Request) (Response, error) {
 	var response Response
 
-	winningNumbers, err := convertStringToUniqueSortedNumbers(request.WinningNumbers)
+	draw, err := newTotoDraw(request.WinningNumbers, request.AdditionalNumber)
+	if err != nil {
+		return response, err
+	}
+
+	bets, err := mapBetStringsToBets(request.Bets)
 	if err != nil {
 		errorResponseBody := ErrorResponseBody{
 			Status:  400,
-			Message: "unable to parse winning numbers",
+			Message: err.Error(),
 		}
 
 		return response, writeError(errorResponseBody)
 	}
 
-	if len(winningNumbers) != 6 {
-		errorResponseBody := ErrorResponseBody{
-			Status:  400,
-			Message: "winning numbers should only contain 6 numbers",
-		}
-		return response, writeError(errorResponseBody)
+	results := make([]totodraw.BetResult, len(bets))
+
+	for i, bet := range bets {
+		betResult := matchTotoDrawWithBet(draw, bet)
+		results[i] = betResult
 	}
 
-	additionaNumber, err := convertStringToNumber(request.AdditionalNumber)
-	if err != nil {
-		errorResponseBody := ErrorResponseBody{
-			Status:  400,
-			Message: "unable to parse additional number",
-		}
-
-		return response, writeError(errorResponseBody)
-	}
-
-	response.TotoDraw = TotoDraw{
-		WinningNumbers:   winningNumbers,
-		AdditionalNumber: additionaNumber,
-	}
-
+	response.TotoDraw = draw
+	response.Results = results
 	return response, nil
 }
 
@@ -154,41 +198,4 @@ func main() {
 	fmt.Printf("Listening on: %s", p)
 
 	log.Fatal(http.ListenAndServe(p, nil))
-}
-
-func convertStringToUniqueSortedNumbers(str string) ([]int, error) {
-	errorPreText := "convertStringToUniqueSortedNumbers error:"
-	trimmed := strings.Trim(str, " ")
-	split := strings.Split(trimmed, " ")
-	numberMap := make(map[int]int, len(split))
-
-	var numbers []int
-
-	for _, s := range split {
-		num, err := convertStringToNumber(s)
-		if err != nil {
-			return []int{}, fmt.Errorf("%s fail to convert %s, in string: %s", errorPreText, s, split)
-		}
-
-		_, ok := numberMap[num]
-		if ok {
-			return []int{}, fmt.Errorf("%s should not have duplicate numbers", errorPreText)
-		}
-
-		numberMap[num] = 1
-
-		numbers = append(numbers, num)
-	}
-
-	sort.Ints(numbers)
-
-	return numbers, nil
-}
-
-func convertStringToNumber(str string) (int, error) {
-	num, err := strconv.Atoi(str)
-	if err != nil {
-		return 0, err
-	}
-	return num, err
 }

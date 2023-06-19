@@ -10,73 +10,11 @@ import (
 	"testing"
 )
 
-func TestConvertStringToSortedNumbersSpaceTrim(t *testing.T) {
-	input := " 1 2 3 "
-	numbers, err := convertStringToUniqueSortedNumbers(input)
-	if err != nil {
-		t.Errorf("unexpected error converting %s", input)
-	}
-
-	expected := []int{1, 2, 3}
-
-	for i, num := range expected {
-		if numbers[i] != num {
-			t.Errorf("was expecting %v but got %v instead", expected, numbers)
-		}
-	}
-}
-
-func TestConvertStringToSortedNumbersLeading0(t *testing.T) {
-	input := "01 02 03"
-	numbers, err := convertStringToUniqueSortedNumbers(input)
-	if err != nil {
-		t.Errorf("unexpected error converting %s", input)
-	}
-
-	expected := []int{1, 2, 3}
-
-	for i, num := range expected {
-		if numbers[i] != num {
-			t.Errorf("was expecting %v but got %v instead", expected, numbers)
-		}
-	}
-}
-
-func TestConvertStringToSortedNumbersSorted(t *testing.T) {
-	input := "3 2 1"
-	numbers, err := convertStringToUniqueSortedNumbers(input)
-	if err != nil {
-		t.Errorf("unexpected error converting %s", input)
-	}
-
-	expected := []int{1, 2, 3}
-
-	for i, num := range expected {
-		if numbers[i] != num {
-			t.Errorf("was expecting %v but got %v instead", expected, numbers)
-		}
-	}
-}
-
-func TestConvertStringToNumber(t *testing.T) {
-	input := "01"
-	number, err := convertStringToNumber(input)
-	if err != nil {
-		t.Errorf("unexpected error converting %s", input)
-	}
-
-	expected := 1
-
-	if number != expected {
-		t.Errorf("expecting %d got %d instead", expected, number)
-	}
-}
-
 func TestNewTotoDraw(t *testing.T) {
 	inputWinningNumbers := "7 13 18 19 25 29"
 	inputAdditionalNumber := "36"
 
-	totoDraw, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+	totoDraw, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 	if err != nil {
 		t.Errorf("error in NewTotoDraw %v", err)
 	}
@@ -99,9 +37,9 @@ func TestNewTotoDrawWrongWinningNumberLength(t *testing.T) {
 	inputWinningNumbers := "7 13 18 19 25 29 30"
 	inputAdditionalNumber := "36"
 
-	_, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 
-	expectedErrorString := "NewTotoDraw error: winning numbers should only have a length of 6"
+	expectedErrorString := "{\"status\":400,\"message\":\"winning numbers should only contain 6 numbers\"}"
 	actualErrorString := fmt.Sprint(err)
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
@@ -112,9 +50,22 @@ func TestNewTotoDrawDuplicateWinningNumber(t *testing.T) {
 	inputWinningNumbers := "7 13 18 19 29 29"
 	inputAdditionalNumber := "36"
 
-	_, err := NewTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
 
-	expectedErrorString := "NewTotoDraw error: convertStringToUniqueSortedNumbers error: should not have duplicate numbers"
+	expectedErrorString := "{\"status\":400,\"message\":\"convertStringToUniqueSortedNumbers error: should not have duplicate numbers\"}"
+	actualErrorString := fmt.Sprint(err)
+	if actualErrorString != expectedErrorString {
+		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
+	}
+}
+
+func TestNewTotoDrawDuplicateWinningNumberInAdditionalNumber(t *testing.T) {
+	inputWinningNumbers := "7 13 18 19 29 36"
+	inputAdditionalNumber := "36"
+
+	_, err := newTotoDraw(inputWinningNumbers, inputAdditionalNumber)
+
+	expectedErrorString := "{\"status\":400,\"message\":\"duplicate number found in additional number\"}"
 	actualErrorString := fmt.Sprint(err)
 	if actualErrorString != expectedErrorString {
 		t.Errorf("expected '%s' but got: '%s' instead", expectedErrorString, actualErrorString)
@@ -190,7 +141,7 @@ func TestEndpointInvalidCharactersInWinningNumber(t *testing.T) {
 		t.Errorf("expected error to be nil got %v", err)
 	}
 
-	expectedMessage := "unable to parse winning numbers"
+	expectedMessage := "convertStringToUniqueSortedNumbers error: fail to convert a7, in string: [01 02 03 04 05 06 a7]"
 	actualMessage := errorResponseBody.Message
 
 	if actualMessage != expectedMessage {
@@ -262,5 +213,129 @@ func TestResponseWinningNumbers(t *testing.T) {
 
 	if totoDraw.AdditionalNumber != expectedAdditionalNumber {
 		t.Errorf("expected Additional number : %d but got %d instead", expectedAdditionalNumber, totoDraw.AdditionalNumber)
+	}
+}
+
+func TestResponseWinningBet(t *testing.T) {
+	serializedPayload := []byte(`{"winningNumbers": "01 02 03 04 05 06", "additionalNumber": "07", "bets": ["1 2 3 4 5 6"]}`)
+	reader := bytes.NewReader(serializedPayload)
+
+	req := httptest.NewRequest(http.MethodPost, "/", reader)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	res := w.Result()
+	defer res.Body.Close()
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+	if actualStatus != expectedStatus {
+		t.Errorf("expected status: %d got %d", expectedStatus, actualStatus)
+	}
+
+	var response Response
+	err := json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		t.Errorf("expected error to be nil got %v", err)
+	}
+
+	totoDraw := response.TotoDraw
+
+	expectedWinningNumbers := []int{1, 2, 3, 4, 5, 6}
+	expectedAdditionalNumber := 7
+	for i, n := range expectedWinningNumbers {
+		if n != totoDraw.WinningNumbers[i] {
+			t.Errorf("expected winning numbers: %v but got %v instead", expectedWinningNumbers, response.TotoDraw.WinningNumbers)
+		}
+	}
+
+	if totoDraw.AdditionalNumber != expectedAdditionalNumber {
+		t.Errorf("expected Additional number : %d but got %d instead", expectedAdditionalNumber, totoDraw.AdditionalNumber)
+	}
+
+	expectedPrize := "Group 1"
+	actualPrize := response.Results[0].Prize
+
+	if expectedPrize != actualPrize {
+		t.Errorf("expected prize: %s but got %s instead", expectedPrize, actualPrize)
+	}
+
+	expectedNumbersMatched := 6
+
+	actualNumbersMatched := response.Results[0].NumbersMatched
+
+	if expectedNumbersMatched != actualNumbersMatched {
+		t.Errorf("expected matches: %d but got %d instead", expectedNumbersMatched, actualNumbersMatched)
+	}
+
+	expectedHasAdditionalNumber := false
+	actualHasAdditionalNumber := response.Results[0].HasAdditionalNumber
+
+	if expectedHasAdditionalNumber != actualHasAdditionalNumber {
+		t.Errorf("expected matches: %t but got %t instead", expectedHasAdditionalNumber, actualHasAdditionalNumber)
+	}
+}
+
+func TestResponseGroupTwoBet(t *testing.T) {
+	serializedPayload := []byte(`{"winningNumbers": "01 02 03 04 05 06", "additionalNumber": "07", "bets": ["1 2 3 4 5 7"]}`)
+	reader := bytes.NewReader(serializedPayload)
+
+	req := httptest.NewRequest(http.MethodPost, "/", reader)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	res := w.Result()
+	defer res.Body.Close()
+
+	expectedStatus := http.StatusOK
+	actualStatus := res.StatusCode
+	if actualStatus != expectedStatus {
+		t.Errorf("expected status: %d got %d", expectedStatus, actualStatus)
+	}
+
+	var response Response
+	err := json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		t.Errorf("expected error to be nil got %v", err)
+	}
+
+	totoDraw := response.TotoDraw
+
+	expectedWinningNumbers := []int{1, 2, 3, 4, 5, 6}
+	expectedAdditionalNumber := 7
+	for i, n := range expectedWinningNumbers {
+		if n != totoDraw.WinningNumbers[i] {
+			t.Errorf("expected winning numbers: %v but got %v instead", expectedWinningNumbers, response.TotoDraw.WinningNumbers)
+		}
+	}
+
+	if totoDraw.AdditionalNumber != expectedAdditionalNumber {
+		t.Errorf("expected Additional number : %d but got %d instead", expectedAdditionalNumber, totoDraw.AdditionalNumber)
+	}
+
+	expectedBetType := "Ordinary"
+	actualBetType := response.Results[0].BetType
+
+	if expectedBetType != actualBetType {
+		t.Errorf("expected prize: %s but got %s instead", expectedBetType, actualBetType)
+	}
+
+	expectedPrize := "Group 2"
+	actualPrize := response.Results[0].Prize
+
+	if expectedPrize != actualPrize {
+		t.Errorf("expected prize: %s but got %s instead", expectedPrize, actualPrize)
+	}
+
+	expectedNumbersMatched := 5
+	actualNumbersMatched := response.Results[0].NumbersMatched
+
+	if expectedNumbersMatched != actualNumbersMatched {
+		t.Errorf("expected matches: %d but got %d instead", expectedNumbersMatched, actualNumbersMatched)
+	}
+
+	expectedHasAdditionalNumber := true
+	actualHasAdditionalNumber := response.Results[0].HasAdditionalNumber
+
+	if expectedHasAdditionalNumber != actualHasAdditionalNumber {
+		t.Errorf("expected matches: %t but got %t instead", expectedHasAdditionalNumber, actualHasAdditionalNumber)
 	}
 }
