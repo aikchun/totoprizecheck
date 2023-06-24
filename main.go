@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/aikchun/totoprizecheck/internal/prizetable"
 	"github.com/aikchun/totoprizecheck/internal/stringutils"
 	"github.com/aikchun/totoprizecheck/internal/totodraw"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/joho/godotenv"
 )
 
 type Request struct {
@@ -192,10 +195,26 @@ func lambdaHandler(request Request) (Response, error) {
 }
 
 func main() {
-	p := ":8080"
-	http.HandleFunc("/", handler)
-	fmt.Printf("starting http server\n")
-	fmt.Printf("Listening on: %s", p)
+	err := godotenv.Load(".env")
 
-	log.Fatal(http.ListenAndServe(p, nil))
+	if err != nil {
+		log.Printf("Couldn't find .env")
+	}
+
+	e := os.Getenv("ENVIRONMENT")
+
+	if e != "dev" {
+		lambda.Start(lambdaHandler)
+	}
+
+	p := ":8080"
+
+	if e == "dev" {
+		http.HandleFunc("/", handler)
+		fmt.Printf("starting http server\n")
+		fmt.Printf("listening: %s\n", p)
+
+		log.Fatal(http.ListenAndServe(p, nil))
+	}
+
 }
