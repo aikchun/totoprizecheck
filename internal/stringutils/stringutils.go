@@ -8,7 +8,6 @@ import (
 )
 
 func ConvertStringToUniqueSortedNumbers(str string) ([]int, error) {
-	errorPreText := "convertStringToUniqueSortedNumbers error:"
 	trimmed := strings.Trim(str, " ")
 	split := strings.Split(trimmed, " ")
 	numberMap := make(map[int]int, len(split))
@@ -18,12 +17,12 @@ func ConvertStringToUniqueSortedNumbers(str string) ([]int, error) {
 	for _, s := range split {
 		num, err := ConvertStringToNumber(s)
 		if err != nil {
-			return []int{}, fmt.Errorf("%s fail to convert %s, in string: %s", errorPreText, s, split)
+			return []int{}, fmt.Errorf("%s: %s", err.Error(), split)
 		}
 
 		_, ok := numberMap[num]
 		if ok {
-			return []int{}, fmt.Errorf("%s should not have duplicate numbers", errorPreText)
+			return []int{}, fmt.Errorf("duplicate numbers found: %s", split)
 		}
 
 		numberMap[num] = 1
@@ -39,7 +38,12 @@ func ConvertStringToUniqueSortedNumbers(str string) ([]int, error) {
 func ConvertStringToNumber(str string) (int, error) {
 	num, err := strconv.Atoi(str)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to convert %s", str)
 	}
+
+	if num < 1 && num > 49 {
+		return 0, fmt.Errorf("number not within range: %s", str)
+	}
+
 	return num, err
 }
