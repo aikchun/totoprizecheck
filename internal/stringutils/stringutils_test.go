@@ -1,6 +1,9 @@
 package stringutils
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestConvertStringToSortedNumbersSpaceTrim(t *testing.T) {
 	input := " 1 2 3 "
@@ -61,5 +64,44 @@ func TestConvertStringToNumber(t *testing.T) {
 
 	if number != expected {
 		t.Errorf("expecting %d got %d instead", expected, number)
+	}
+}
+
+func TestConvertStringToNumberLessThanOne(t *testing.T) {
+	input := "0"
+	_, err := ConvertStringToNumber(input)
+	if err == nil {
+		t.Errorf("expecting err to be not nil")
+	}
+
+	expected := fmt.Sprintf("number not within range: %s", input)
+
+	if err.Error() != expected {
+		t.Errorf("expecting %s got %s instead", expected, err.Error())
+	}
+
+	input = "-1"
+	_, err = ConvertStringToNumber(input)
+	if err == nil {
+		t.Errorf("expecting err to be not nil")
+	}
+
+	expected = fmt.Sprintf("number not within range: %s", input)
+
+	if err.Error() != expected {
+		t.Errorf("expecting %s got %s instead", expected, err.Error())
+	}
+}
+func TestConvertStringToNumberMoreThanFortyNine(t *testing.T) {
+	input := "50"
+	_, err := ConvertStringToNumber(input)
+	if err == nil {
+		t.Errorf("expecting err to be not nil")
+	}
+
+	expected := fmt.Sprintf("number not within range: %s", input)
+
+	if err.Error() != expected {
+		t.Errorf("expecting %s got %s instead", expected, err.Error())
 	}
 }
