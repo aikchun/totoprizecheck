@@ -41,7 +41,7 @@ func ConvertStringToNumber(str string) (int, error) {
 		return 0, fmt.Errorf("failed to convert %s", str)
 	}
 
-	if num < 1 && num > 49 {
+	if num < 1 || num > 49 {
 		return 0, fmt.Errorf("number not within range: %s", str)
 	}
 
