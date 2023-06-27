@@ -1,3 +1,6 @@
+# Toto Prize Check
+![Deploy](https://github.com/aikchun/totoprizecheck/actions/workflows/deploy.yml/badge.svg)
+
 # How to run test
 
 ```bash
