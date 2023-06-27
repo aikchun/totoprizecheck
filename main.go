@@ -197,24 +197,23 @@ func lambdaHandler(request Request) (Response, error) {
 func main() {
 	err := godotenv.Load(".env")
 
-	if err != nil {
+	e := os.Getenv("ENVIRONMENT")
+
+	isRunningOnWebServer := e == "dev"
+	isRunningOnLambda := !isRunningOnWebServer
+
+	if isRunningOnWebServer && err != nil {
 		log.Printf("Couldn't find .env")
 	}
 
-	e := os.Getenv("ENVIRONMENT")
-
-	if e != "dev" {
+	if isRunningOnLambda {
 		lambda.Start(lambdaHandler)
-	}
-
-	p := ":8080"
-
-	if e == "dev" {
+	} else {
+		p := ":8080"
 		http.HandleFunc("/", handler)
 		fmt.Printf("starting http server\n")
 		fmt.Printf("listening: %s\n", p)
 
 		log.Fatal(http.ListenAndServe(p, nil))
 	}
-
 }
