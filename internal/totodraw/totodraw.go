@@ -21,10 +21,20 @@ func (b Bet) GetBetType() string {
 }
 
 func (w WinningNumbers) Contains(i int) bool {
-	for _, n := range w {
-		if n == i {
+	lo := 0
+	hi := len(w)
+	for lo < hi {
+		mid := ((hi - lo) / 2) + lo
+		if w[mid] == i {
 			return true
 		}
+		if i < w[mid] {
+			hi = mid
+		}
+		if i > w[mid] {
+			lo = mid + 1
+		}
+
 	}
 	return false
 }
