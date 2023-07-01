@@ -1,9 +1,8 @@
 name: Deploy
 
 on:
-  pull_request:
-    branches: [main]
-    types: [closed]
+  release:
+    types: [published]
 
 jobs:
   test_lint_deploy:
@@ -42,5 +41,6 @@ jobs:
       run: |
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o main main.go
         zip main.zip main
-        aws lambda update-function-code --function-name=totoprizecheck --zip-file=fileb://main.zip --publish
+        aws lambda update-function-code --function-name=totoprizecheck --zip-file=fileb://main.zip --no-publish
+        aws lambda publish-version --function-name=totoprizecheck --description "${{ github.event.release.body }}"
       if: github.event.pull_request.merged
