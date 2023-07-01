@@ -43,4 +43,3 @@ jobs:
         zip main.zip main
         aws lambda update-function-code --function-name=totoprizecheck --zip-file=fileb://main.zip --no-publish
         aws lambda publish-version --function-name=totoprizecheck --description "${{ github.event.release.body }}"
-      if: github.event.pull_request.merged
